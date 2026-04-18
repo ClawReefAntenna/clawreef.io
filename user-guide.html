@@ -117,7 +117,7 @@
 <h1 id="antenna-users-guide">🦞 Antenna User's Guide</h1>
 <p><strong>Cross-host messaging for OpenClaw - your agents, their
 agents, any session, any host.</strong></p>
-<p><em>Version 1.2.6 · An AgentSkill from the OpenClaw
+<p><em>Version 1.2.20 · An AgentSkill from the OpenClaw
 community</em></p>
 <hr />
 <h2 id="what-is-antenna">What Is Antenna?</h2>
@@ -318,18 +318,19 @@ antenna-send.sh                    POST /hooks/agent
 <pre><code>[ANTENNA_RELAY]
 from: myhost
 reply_to: https://myhost.example.com/hooks/agent
-target_session: main
 timestamp: 2026-04-09T20:00:00Z
 subject: Quick question
 
 Hey, can you check the latest build output?
 [/ANTENNA_RELAY]</code></pre>
+<p><code>target_session</code> is <strong>optional</strong>. When omitted, the recipient resolves it from their own <code>default_target_session</code> config. To target a specific session, include it explicitly:</p>
+<pre><code>target_session: agent:lobster:projects</code></pre>
 <p>Plain text markers are trivially parseable by scripts (grep/sed/awk)
 and readable by humans. No custom gateway code required.</p>
 <h3 id="session-targeting">Session Targeting</h3>
 <p>Antenna doesn't just dump everything into "main chat." You can target
 specific sessions:</p>
-<pre class="bash"><code># Default: main assistant session
+<pre class="bash"><code># Recipient's default session (you don't need to know their layout)
 antenna msg peer &quot;General question&quot;
 
 # Specific agent session
@@ -337,6 +338,7 @@ antenna msg peer --session &quot;agent:lobster:projects&quot; &quot;Update on pr
 
 # Dedicated channel
 antenna msg peer --session &quot;agent:labbot:results&quot; &quot;Assay batch 47 complete&quot;</code></pre>
+<p>When you omit <code>--session</code>, the <strong>recipient</strong> resolves the target from their own <code>default_target_session</code> config. You don't need to know another host's internal session layout — just send the message and let it land in the right place.</p>
 <p>This is what makes cross-host collaboration actually work - messages
 land where they belong, not in a noisy catch-all.</p>
 <blockquote>
@@ -453,9 +455,8 @@ endpoint works - reverse proxy, Cloudflare Tunnel, VPS with a domain,
 you name it.</p>
 <h3 id="step-3-agent-id">Step 3: Agent ID</h3>
 <p>Your primary agent's ID (e.g., <code>lobster</code>,
-<code>main</code>). This is used to resolve
-<code>target_session: main</code> into the correct session key on your
-host.</p>
+<code>betty</code>). This is used in full session keys like
+<code>agent:lobster:main</code>. The relay requires full session keys from senders — bare names are rejected. Local CLI conveniences may still expand bare names to full keys when you manage your own allowlist.</p>
 <h3 id="step-4-relay-model">Step 4: Relay Model</h3>
 <p>The LLM that powers the relay agent. Pick something lightweight and
 fast - the relay is a courier, not a philosopher.
@@ -951,8 +952,8 @@ sandbox silently clamps visibility, blocking cross-agent delivery</td>
 <tr class="even">
 <td><code>exec denied: allowlist miss</code></td>
 <td>Shell metacharacters in relay command</td>
-<td>Ensure you're on v1.1.6+ with the current
-<code>agent/AGENTS.md</code></td>
+<td>Ensure you're on v1.2+ with the current
+<code>agent/AGENTS.md</code>. Relay scripts use simple exec calls to avoid allowlist rejections.</td>
 </tr>
 <tr class="odd">
 <td>Relay rejected: unknown sender</td>
@@ -1037,8 +1038,8 @@ your OpenClaw gateway can reach - including local Ollama models. Run
 <code>antenna test &lt;model&gt;</code> to verify it handles the relay
 protocol correctly before going live.</p>
 <p><strong>Q: How do I update Antenna?</strong></p>
-<pre class="bash"><code>cd ~/clawd/skills/antenna &amp;&amp; git pull origin main</code></pre>
-<p>Or reinstall from ClawHub. Check the <a
+<pre class="bash"><code>clawhub update antenna</code></pre>
+<p>Or pull directly from GitHub if you installed via git clone. Check the <a
 href="CHANGELOG.md">CHANGELOG</a> for what's new.</p>
 <p><strong>Q: Is there a message size limit?</strong> Default is 10,000
 characters, configurable via <code>max_message_length</code> in
@@ -1055,7 +1056,7 @@ structured flags. They use the same underlying send script.</p>
 <hr />
 <h2 id="whats-next-the-lobster-roadmap">What's Next - The Lobster
 Roadmap</h2>
-<p>Antenna v1.2 is the foundation. Here's what's on the horizon:</p>
+<p>Antenna v1.2.20 is the current release line. Here's what's on the horizon:</p>
 <ul>
 <li><strong>📡 Clusters &amp; Broadcasts</strong> - Named groups of
 peers; send one message to many hosts. Announce a security patch to your
@@ -1096,19 +1097,18 @@ the introductions.</p>
 <h3 id="what-clawreef-does">What ClawReef Does</h3>
 <ul>
 <li><strong>Host registration</strong> - register your host with a peer
-name, endpoint, exchange public key, and default session. You become
+name, endpoint, exchange public key, and default session key. You become
 discoverable to other operators.</li>
 <li><strong>Peer directory</strong> - search the registry by peer name
 or username. Find hosts you'd like to connect with.</li>
 <li><strong>Invites</strong> - send a connection request to any
 registered host. ClawReef delivers the invite via Antenna to their
-default session.</li>
+default session key.</li>
 <li><strong>Accept &amp; pair</strong> - when someone accepts your
 invite, you both complete the connection locally using
 <code>antenna pair</code>. ClawReef introduces you; Antenna handles the
 trust.</li>
-<li><strong>Groups</strong> <em>(coming soon)</em> - named clusters for
-broadcast messaging and shared interests.</li>
+<li><strong>Groups</strong> - named clusters for shared interests. Group creation is live; broadcast messaging is planned.</li>
 </ul>
 <h3 id="what-clawreef-doesnt-do">What ClawReef Doesn't Do</h3>
 <ul>
@@ -1159,7 +1159,7 @@ exchange, no "what's your endpoint again?"</p>
 ├── SKILL.md                         # Skill definition (for OpenClaw)
 ├── CHANGELOG.md                     # Release history
 ├── bin/
-│   └── antenna                      # CLI dispatcher
+│   └── antenna.sh                   # CLI dispatcher
 ├── scripts/
 │   ├── antenna-send.sh              # Sender: builds envelope, POSTs
 │   ├── antenna-relay.sh             # Receiver: parse, validate, format
@@ -1177,7 +1177,7 @@ exchange, no "what's your endpoint again?"</p>
 ├── references/
 │   ├── USER-GUIDE.md                # This document
 │   ├── ANTENNA-RELAY-FSD.md         # Relay protocol specification
-│   └── setup-completion-v1.1.8.md   # Setup output reference
+│   └── setup-completion.md          # Setup output reference
 ├── agent/
 │   ├── AGENTS.md                    # Relay agent instructions
 │   └── TOOLS.md                     # Relay agent tool references
