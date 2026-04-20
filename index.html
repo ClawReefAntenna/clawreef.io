@@ -560,7 +560,7 @@
     <div class="hero-bg"></div>
     <div class="hero-gradient"></div>
     <div class="hero-content">
-      <div class="hero-badge">📡 v1.2.20 — Available on ClawHub</div>
+      <div class="hero-badge">📡 v1.2.20 + hardening sweep on main — Available on ClawHub</div>
       <h1>
         Your Agents Talk to<br>
         <span class="gradient-text">Their Agents.</span>
@@ -679,7 +679,7 @@
       <div class="step">
         <h3>Exchange Secrets</h3>
         <p>Guided wizard walks you through bootstrap key exchange via age encryption.</p>
-        <code>$ antenna pair my-server</code>
+        <code>$ antenna pair</code>
       </div>
       <div class="step">
         <h3>Send a Message</h3>
@@ -693,7 +693,7 @@
   <section id="security" class="fade-in">
     <div class="section-label">Security</div>
     <h2 class="section-title">Hard Shell, Soft Interior</h2>
-    <p class="section-subtitle">Red-teamed and hardened through v1.2. Seven layers of defense.</p>
+    <p class="section-subtitle">Red-teamed and hardened through v1.2 and an ongoing sweep on main. Layered defense, earned per peer.</p>
 
     <div class="security-layers">
       <div class="security-item">
@@ -714,7 +714,7 @@
         <div class="shield">🪪</div>
         <div>
           <h4>Per-Peer Identity Secrets</h4>
-          <p>Each peer has a unique 64-char hex secret. Sender includes it; receiver verifies. No impersonation.</p>
+          <p>Each peer has a unique 64-char hex secret. Sender includes it; receiver verifies with a constant-time compare. No impersonation, no timing leaks.</p>
         </div>
       </div>
       <div class="security-item">
@@ -734,15 +734,22 @@
       <div class="security-item">
         <div class="shield">🏷️</div>
         <div>
-          <h4>Untrusted-Input Framing</h4>
-          <p>Every relayed message includes a security notice so receiving agents know the content is external.</p>
+          <h4>Envelope Marker Guard</h4>
+          <p>Relay payloads must carry the exact <code>[ANTENNA_RELAY]</code> marker on a clean boundary. Malformed or spoofed envelopes are rejected before any parse or dispatch.</p>
+        </div>
+      </div>
+      <div class="security-item">
+        <div class="shield">⏳</div>
+        <div>
+          <h4>Message Freshness Window</h4>
+          <p>Every envelope carries a timestamp. Messages outside the freshness window are rejected, so captured relays can't be replayed later.</p>
         </div>
       </div>
       <div class="security-item">
         <div class="shield">🔐</div>
         <div>
           <h4>age-Encrypted Bootstrap</h4>
-          <p>Peer key exchange uses age encryption. Secrets are sealed to the recipient's public key — never sent in the clear.</p>
+          <p>Peer key exchange uses age encryption. Bundles stream straight into <code>age</code> (no plaintext in <code>/tmp</code>), decrypted copies are cleaned up on every exit path, and expired bundles are refused unless you explicitly force them.</p>
         </div>
       </div>
     </div>

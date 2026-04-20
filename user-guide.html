@@ -383,7 +383,25 @@ entry.</td>
 <tr class="odd">
 <td><strong>Per-peer identity secret</strong></td>
 <td>Each peer has a unique 64-character hex secret. Senders include it;
-receivers verify it. Impersonation doesn't work here.</td>
+receivers verify it with a constant-time compare. No impersonation, no
+timing leaks.</td>
+</tr>
+<tr class="even">
+<td><strong>Full-session-key allowlists</strong></td>
+<td>Inbound messages must target a fully-qualified session key (e.g.
+<code>agent:betty:main</code>). Bare session names like <code>main</code>
+are rejected. No ambiguous cross-agent delivery.</td>
+</tr>
+<tr class="odd">
+<td><strong>Envelope marker guard</strong></td>
+<td>Relay payloads must carry the exact <code>[ANTENNA_RELAY]</code>
+marker on a clean boundary. Malformed or spoofed envelopes are rejected
+before parse or dispatch.</td>
+</tr>
+<tr class="even">
+<td><strong>Message freshness window</strong></td>
+<td>Every envelope carries a timestamp; messages outside the freshness
+window are refused. Captured relays can't be replayed later.</td>
 </tr>
 <tr class="even">
 <td><strong>Peer allowlists</strong></td>
@@ -403,12 +421,24 @@ budget burn.</td>
 <tr class="odd">
 <td><strong>Untrusted-input framing</strong></td>
 <td>Every relayed message includes a security notice so receiving agents
-know the content is external.</td>
+know the content is external. Advisory, not load-bearing.</td>
 </tr>
 <tr class="even">
 <td><strong>Log sanitization</strong></td>
 <td>Peer-supplied values are stripped of control characters before
 logging.</td>
+</tr>
+<tr class="odd">
+<td><strong>Concurrency-safe state</strong></td>
+<td>Inbox mutations and rate-limit transactions are wrapped in
+<code>flock</code> so parallel relays can't lose refs, double-approve,
+or weaken throttling.</td>
+</tr>
+<tr class="even">
+<td><strong>Relay temp-file hygiene</strong></td>
+<td>Each relay run writes to a unique temp file under
+<code>/tmp/antenna-relay/</code> with cleanup traps — no shared fixed
+filename, no lingering plaintext on crash.</td>
 </tr>
 <tr class="odd">
 <td><strong>File permission audit</strong></td>
@@ -426,6 +456,26 @@ needed to establish the connection (endpoint, tokens, secrets,
 metadata), encrypted so only the intended recipient can read it.</p>
 <p>No pasting raw secrets into chat. No hoping email didn't mangle your
 base64. Just encrypted bundles that travel safely over any channel.</p>
+<p>Recent hardening on <code>main</code>:</p>
+<ul>
+<li><strong>No plaintext in <code>/tmp</code> on export</strong> - the
+bundle streams straight from <code>jq</code> into <code>age</code>, so
+unencrypted secrets never hit disk on the sender.</li>
+<li><strong>Cleanup on every import exit path</strong> - decrypted
+bundles are wiped on validate failure, preview failure, write failure,
+normal return, and interrupts.</li>
+<li><strong>Expired bundles are refused</strong> - import rejects stale
+bundles unless you explicitly pass <code>--force-expired</code>.</li>
+<li><strong>No self-imports</strong> - importing your own bundle is
+refused before any trust material is written.</li>
+<li><strong>Runtime identity secrets stay off stdout</strong> - the
+legacy raw-secret export refuses to print to non-TTY stdout, steering
+you toward the encrypted bundle flow.</li>
+<li><strong>No fabricated sender on email delivery</strong> - when you
+send a bundle by email, Antenna resolves the <code>From:</code> from
+your configured Himalaya account. No freeform override, no
+<code>antenna@localhost</code> fallback.</li>
+</ul>
 <blockquote>
 <p><strong>Use case:</strong> You're connecting with a colleague's
 OpenClaw for the first time. You share public keys over Slack, exchange
@@ -691,9 +741,14 @@ you've finished your coffee.</p>
 </tr>
 <tr class="even">
 <td><code>antenna peers add &lt;id&gt; --url &lt;url&gt; --token-file &lt;path&gt;</code></td>
-<td>Register a peer manually</td>
+<td>Register a peer manually. Refuses to overwrite an existing peer
+unless you pass <code>--force</code>.</td>
 </tr>
 <tr class="odd">
+<td><code>antenna peers add &lt;id&gt; ... --force</code></td>
+<td>Overwrite an existing peer record on purpose.</td>
+</tr>
+<tr class="even">
 <td><code>antenna peers remove &lt;id&gt;</code></td>
 <td>Remove a peer</td>
 </tr>
@@ -726,15 +781,29 @@ you've finished your coffee.</p>
 </tr>
 <tr class="odd">
 <td><code>antenna peers exchange initiate &lt;peer&gt; --pubkey &lt;key&gt;</code></td>
-<td>Create an encrypted bootstrap bundle</td>
+<td>Create an encrypted bootstrap bundle.</td>
 </tr>
 <tr class="even">
+<td><code>antenna peers exchange initiate &lt;peer&gt; --pubkey &lt;key&gt; --send-email [--account &lt;name&gt;]</code></td>
+<td>Same as above, then email the bundle via a configured Himalaya
+account. Sender address is resolved from the account's TOML config; no
+freeform <code>From:</code> override.</td>
+</tr>
+<tr class="odd">
 <td><code>antenna peers exchange import &lt;file&gt;</code></td>
-<td>Import and decrypt a peer's bundle</td>
+<td>Import and decrypt a peer's bundle. Expired bundles are refused.</td>
+</tr>
+<tr class="even">
+<td><code>antenna peers exchange import &lt;file&gt; --force-expired</code></td>
+<td>Import an expired bundle anyway (operator's call).</td>
 </tr>
 <tr class="odd">
 <td><code>antenna peers exchange reply &lt;peer&gt;</code></td>
-<td>Create a reply bundle after importing</td>
+<td>Create a reply bundle after importing.</td>
+</tr>
+<tr class="even">
+<td><code>antenna peers exchange reply &lt;peer&gt; --send-email [--account &lt;name&gt;]</code></td>
+<td>Reply and email the bundle in one step.</td>
 </tr>
 </tbody>
 </table>
@@ -973,18 +1042,40 @@ config</td>
 href="https://github.com/FiloSottile/age">age docs</a></td>
 </tr>
 <tr class="even">
-<td>Email send fails</td>
-<td><code>himalaya</code> not installed or OAuth expired</td>
-<td>Use <code>gog gmail send --attach</code> as fallback, or send the
-bundle file manually</td>
+<td>Email send fails / wrong sender</td>
+<td><code>himalaya</code> not installed, account not configured, or the
+account's TOML is missing <code>email = "..."</code></td>
+<td>Antenna resolves the <code>From:</code> from your Himalaya TOML
+(<code>$HIMALAYA_CONFIG</code> or
+<code>~/.config/himalaya/config.toml</code>). Set <code>email</code>
+on the account, or pick a different one with <code>--account</code>.
+No freeform override and no <code>antenna@localhost</code> fallback.</td>
 </tr>
 <tr class="odd">
-<td>Repeated approval prompts</td>
-<td>Stale exec overrides on Antenna agent</td>
-<td><strong>Remove</strong> any <code>tools.exec.security</code> or
-<code>tools.exec.ask</code> from the Antenna agent registration &mdash;
-explicit exec overrides cause silent relay failure (fixed in v1.2.14).
-Only <code>sandbox: { mode: "off" }</code> is needed</td>
+<td>Encrypted import complains about expiry</td>
+<td>Bundle is older than the freshness window</td>
+<td>Ask the sender for a fresh bundle, or pass
+<code>--force-expired</code> if you’re sure.</td>
+</tr>
+<tr class="even">
+<td><code>[ANTENNA_RELAY]</code> envelope rejected</td>
+<td>Malformed or spoofed marker</td>
+<td>Expected. The marker guard runs before any parse; regenerate and
+resend through a proper Antenna client.</td>
+</tr>
+<tr class="odd">
+<td>Relay rejected: message too old</td>
+<td>Message timestamp is outside the freshness window (replay guard)</td>
+<td>Check clock skew on both hosts and resend. Captured old relays
+can’t be replayed, by design.</td>
+</tr>
+<tr class="even">
+<td>Setup wipes my custom <code>tools.exec</code> on the Antenna agent</td>
+<td>Pre-REF-903 behavior</td>
+<td>Fixed: <code>antenna setup</code> now <strong>preserves</strong>
+existing <code>tools.exec</code> policy on reruns. Default guidance is
+still to leave it unset on the Antenna agent, but if you’ve accepted
+the trade-off, your override survives.</td>
 </tr>
 <tr class="even">
 <td>Gateway won't start after setup</td>
@@ -1056,7 +1147,10 @@ structured flags. They use the same underlying send script.</p>
 <hr />
 <h2 id="whats-next-the-lobster-roadmap">What's Next - The Lobster
 Roadmap</h2>
-<p>Antenna v1.2.20 is the current release line. Here's what's on the horizon:</p>
+<p>Antenna v1.2.20 is the current tagged release. An ongoing hardening
+sweep is already merged on <code>main</code> (envelope / freshness /
+bootstrap / setup / email-sender / concurrency fixes) and will roll into
+the next tagged release. Here's what's on the horizon:</p>
 <ul>
 <li><strong>📡 Clusters &amp; Broadcasts</strong> - Named groups of
 peers; send one message to many hosts. Announce a security patch to your
