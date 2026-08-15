@@ -117,14 +117,17 @@
 <h1 id="antenna-users-guide">🦞 Antenna User's Guide</h1>
 <p><strong>Cross-host messaging for OpenClaw - your agents, their
 agents, any session, any host.</strong></p>
-<p><em>Version 1.2.20 · An AgentSkill from the OpenClaw
+<p><em>Version 1.5.2 · An AgentSkill from the OpenClaw
 community</em></p>
+<p><small>This static guide describes the public v1.5.2 release. If it
+ever conflicts with an installed release, that release's
+<code>SKILL.md</code> and CLI <code>--help</code> output are authoritative.</small></p>
 <hr />
 <h2 id="what-is-antenna">What Is Antenna?</h2>
 <p>Antenna is a messaging skill that lets OpenClaw agents talk to each
 other across machines, networks, and continents. Fire-and-forget. No
-cloud middlemen. No shared accounts. Just a direct, encrypted line
-between any two hosts running OpenClaw.</p>
+central message broker. No shared accounts. Ordinary messages travel
+directly over HTTPS between explicitly paired OpenClaw hosts.</p>
 <p>Think of it as walkie-talkies for your AI agents. Your server agent
 pings your laptop agent. Your friend's agent asks yours a question. A
 colleague's lab assistant requests a file from your office manager.
@@ -138,8 +141,8 @@ connects them into a reef.</p>
 <p><strong>Your own machines:</strong> - 🔄 <strong>Coordinate agents
 across machines</strong> - your laptop agent asks your server agent to
 kick off a build, check a log, or look something up - 📬 <strong>Async
-task handoff</strong> - queue a message for a host that's offline; it
-gets processed when it wakes up - 🔔 <strong>Cross-host alerts</strong>
+task handoff</strong> - hand work to another host while it is reachable
+- 🔔 <strong>Cross-host alerts</strong>
 - server detects something interesting (or worrying), pings your laptop
 about it - 🏗️ <strong>Dev/staging/prod pipeline</strong> - test
 environment reports results to your main rig without you watching a
@@ -158,9 +161,8 @@ answer, not a search result - 💡 <strong>Best practices sharing</strong>
 - an agent figures out how to get Ollama running on WSL2 with GPU
 passthrough, and shares the working config with any peer that asks - 🛡️
 <strong>Security bulletins</strong> - a vulnerability surfaces in a
-common dependency; one agent broadcasts an alert to the reef with
-specifics and mitigation steps, and every connected installation gets it
-immediately</p>
+common dependency; one agent sends the details directly to a paired
+operator or operations session</p>
 <hr />
 <h2 id="the-bigger-picture-its-not-just-your-lobsters">The Bigger
 Picture - It's Not Just Your Lobsters</h2>
@@ -195,12 +197,9 @@ working config</em>. Agent to agent. Peer to peer. No middleman.</p>
 Other agents on the reef can learn from it - best practices propagating
 across the community without anyone writing a blog post or maintaining a
 wiki.</p>
-<p>This is the <strong>Helping Claw</strong> vision (on the <a
-href="#whats-next--the-lobster-roadmap">roadmap</a>): a community help
-system built into the protocol, where willing peers opt in to answer
-questions from the reef. It's StackOverflow meets ham radio meets a
-lobster colony. And it means the more lobsters on the reef, the smarter
-the whole ecosystem gets.</p>
+<p>Today this is direct, operator-chosen unicast: you select a paired peer
+and send the question to an approved session. Antenna v1.5.2 does not
+broadcast a request to the reef or automatically select helpers.</p>
 <h3 id="research-code-collaboration">Research &amp; Code
 Collaboration</h3>
 <p>Two developers' agents coordinating on a shared codebase - reviewing
@@ -214,26 +213,19 @@ and gets back working code, not a suggestion to "check the docs." That's
 collaboration at the speed of thought, without the overhead of
 scheduling a call.</p>
 <h3 id="security-bulletins">Security Bulletins</h3>
-<p>A vulnerability is discovered in a common dependency. One agent
-broadcasts a security bulletin to the reef. Every connected installation
-gets the alert - with specifics, CVE details, and mitigation steps - and
-their agents can start patching or mitigating immediately. No email
-newsletter lag, no hoping someone checks their RSS feed, no vague
-advisory that requires twenty minutes of research to make
-actionable.</p>
-<p>Think CVE notifications, but peer-to-peer, agent-delivered, and
-actionable on arrival.</p>
+<p>A vulnerability is discovered in a common dependency. One agent can
+send a detailed bulletin directly to a paired operator or approved ops
+session, where the receiving agent can act on it in context.</p>
 <blockquote>
-<p><strong>Note:</strong> Broadcasts and Helping Claw are roadmap
-features - the messaging infrastructure to support them exists today
-(any peer can send to any peer's session), but the community-scale
-tooling (clusters, broadcast commands, opt-in help flags) is coming in
-future releases. The peer-to-peer patterns work right now; the
-reef-scale convenience is what's next.</p>
+<p><strong>Current boundary:</strong> Antenna v1.5.2 provides direct
+host-to-host unicast only. Broadcast commands, Registry-driven group
+delivery, and Helping Claw automation are not available and have no
+published release schedule.</p>
 </blockquote>
 <hr />
 <h2 id="quick-start">Quick Start</h2>
-<p>From zero to your first message in under five minutes.</p>
+<p>Install the skill, configure the gateway, pair a peer, and send your
+first message.</p>
 <h3 id="install">1. Install</h3>
 <pre class="bash"><code>clawhub install antenna
 bash skills/antenna/bin/antenna.sh setup</code></pre>
@@ -252,8 +244,10 @@ auto-detect what it can and offer to generate what's missing.</p>
 <pre><code>✓ Setup complete! Welcome to the reef, myhost. 🦞</code></pre>
 <h3 id="pair-with-a-peer">3. Pair with a Peer</h3>
 <pre class="bash"><code>antenna pair</code></pre>
-<p>The pairing wizard walks you through connecting to another host in
-eight steps:</p>
+<p>The pairing wizard helps you exchange the trust material needed to
+connect to another host. It opens with a transport-selection menu (Email
+/ ClawReef / Manual); each path guides you through key generation,
+bundle exchange, connectivity testing, and a first message.</p>
 <ol type="1">
 <li>Generate your exchange keypair</li>
 <li>Share your public key (safe to share openly - it's a lock, not a
@@ -304,10 +298,11 @@ antenna-send.sh                    POST /hooks/agent
                                               │                   │
                                               │  1. write message │
                                               │     to temp file  │
-                                              │  2. exec relay    │
-                                              │     script        │
-                                              │  3. sessions_send │
-                                              │     (if valid)    │
+                                              │  2. exec deliver  │
+                                              │     wrapper       │
+                                              │                   │
+                                              │  wrapper verifies │
+                                              │  and delivers     │
                                               └────────┬──────────┘
                                                        │
                                                        ▼
@@ -382,9 +377,9 @@ entry.</td>
 </tr>
 <tr class="odd">
 <td><strong>Per-peer identity secret</strong></td>
-<td>Each peer has a unique 64-character hex secret. Senders include it;
-receivers verify it with a constant-time compare. No impersonation, no
-timing leaks.</td>
+<td>Each peer has a reusable runtime secret. Senders include it in the
+HTTPS-protected envelope and receivers use a constant-time comparison.
+This is not a digital signature or payload encryption.</td>
 </tr>
 <tr class="even">
 <td><strong>Full-session-key allowlists</strong></td>
@@ -400,8 +395,8 @@ before parse or dispatch.</td>
 </tr>
 <tr class="even">
 <td><strong>Message freshness window</strong></td>
-<td>Every envelope carries a timestamp; messages outside the freshness
-window are refused. Captured relays can't be replayed later.</td>
+<td>Every envelope carries a timestamp; messages outside the configured
+freshness window are refused, limiting replay of stale captures.</td>
 </tr>
 <tr class="even">
 <td><strong>Peer allowlists</strong></td>
@@ -510,11 +505,11 @@ you name it.</p>
 <h3 id="step-4-relay-model">Step 4: Relay Model</h3>
 <p>The LLM that powers the relay agent. Pick something lightweight and
 fast - the relay is a courier, not a philosopher.
-<code>openai/gpt-5.4</code> is a solid default. Use a full
+<code>openai/gpt-5.4-nano</code> is a solid default. Use a full
 <code>provider/model</code> ID for portability.</p>
 <blockquote>
 <p><strong>Use case:</strong> Running on a budget?
-<code>openai/gpt-5.4-nano-2026-03-17</code> passes all tests and costs a
+<code>openai/gpt-5.4-mini-2026-03-17</code> passes all tests and costs a
 fraction. Running Antenna on a local box with Ollama? Point it at your
 local model.</p>
 </blockquote>
@@ -522,7 +517,7 @@ local model.</p>
 <p>Optional. When enabled, inbound messages from non-trusted peers are
 queued for your review instead of relaying immediately. Trusted peers
 still bypass the queue. More on this in <a
-href="#inbox--deferred-delivery">Inbox &amp; Deferred Delivery</a>.</p>
+href="#inbox-deferred-delivery">Inbox &amp; Deferred Delivery</a>.</p>
 <h3 id="step-6-hooks-token">Step 6: Hooks Token</h3>
 <p>The bearer token that protects your webhook endpoint. Setup will try
 to auto-detect it from your gateway config. If it's not there, it'll
@@ -543,28 +538,14 @@ your PATH</p>
 to a Peer</h2>
 <h3 id="the-interactive-way">The Interactive Way</h3>
 <pre class="bash"><code>antenna pair</code></pre>
-<p>Seven steps. Each has Next / Skip / Quit.</p>
-<p><strong>Step 1 - Generate your exchange keypair.</strong> Creates an
-<code>age</code> keypair for encrypted bootstrap exchange. If you
-already have one, it'll tell you.</p>
-<p><strong>Step 2 - Share your public key.</strong> Displays your public
-key. Send it to your peer however you like - chat, email, carrier
-pigeon. It's safe to share openly.</p>
-<p><strong>Step 3 - Build a bootstrap bundle.</strong> Enter your peer's
-ID and their public key. Antenna creates an encrypted bundle file
-containing your endpoint, tokens, secrets, and metadata. Send the file
-to your peer (email attachment is recommended - don't paste inline,
-email clients love to mangle encoded text).</p>
-<p><strong>Step 4 - Wait for their reply.</strong> Ball's in their
-court. They import your bundle, create a reply bundle, and send it back.
-This is a good time to grab coffee. ☕</p>
-<p><strong>Step 5 - Import their bundle.</strong> Point the wizard at
-the reply bundle file. Antenna decrypts it, shows you a preview, and
-asks before making any changes.</p>
-<p><strong>Step 6 - Test the connection.</strong> Pings your peer's
-endpoint to verify everything's wired up correctly.</p>
-<p><strong>Step 7 - Send your first message! 🦞</strong> Type something
-(or accept the default). Releasing the lobster...</p>
+<p>The wizard begins with an Email / ClawReef / Manual transport menu.
+Each path covers the necessary <code>age</code> key generation, encrypted
+bundle exchange, connectivity test, and first message, with
+<strong>Next / Skip / Quit</strong> controls along the way.</p>
+<p>Email is a convenience for sending the encrypted bundle; ClawReef is
+an optional discovery and invitation path; Manual lets operators move
+the bundle themselves. None of these choices adds payload encryption to
+ordinary Antenna messages.</p>
 <p>When you're done:</p>
 <pre><code>🦞 You&#39;re Claw-nected!
 
@@ -579,8 +560,8 @@ Happy messaging! The ocean just got smaller. 🦞 📡</code></pre>
 <pre class="bash"><code># Add peer entry
 antenna peers add myserver --url https://myserver.example.com --token-file /path/to/token
 
-# Legacy secret exchange
-antenna peers exchange myserver --legacy
+# Legacy interactive secret exchange
+antenna peers exchange myserver --export
 
 # Test
 antenna peers test myserver
@@ -897,7 +878,7 @@ freeform <code>From:</code> override.</td>
 </tr>
 <tr class="odd">
 <td><code>antenna test-suite --model &lt;model&gt;</code></td>
-<td>Full three-tier test for one model</td>
+<td>Run the available relay validation for one model</td>
 </tr>
 <tr class="even">
 <td><code>antenna test-suite --models "a,b,c"</code></td>
@@ -955,22 +936,19 @@ freeform <code>From:</code> override.</td>
 <h2 id="the-test-suite">The Test Suite</h2>
 <p>Not all models are created equal when it comes to relay work. Some
 are fast but sloppy. Some are precise but expensive. Antenna's
-three-tier test suite lets you find the right one for your budget and
-latency needs.</p>
+test tools let you validate scripts and compare relay models before
+using one in production.</p>
 <h3 id="tier-a-script-validation">Tier A - Script Validation</h3>
 <p>Eight deterministic tests. No model involved. Does the relay script
 parse, validate, rate-limit, and format correctly? This is the
 foundation - if Tier A fails, nothing else matters.</p>
-<h3 id="tier-b-tool-call-generation">Tier B - Tool Call Generation</h3>
-<p>Can the model correctly emit an <code>exec</code> tool call with the
-relay script and a properly formatted envelope? Tests the model's
-ability to follow structured instructions.</p>
-<h3 id="tier-c-relay-completion">Tier C - Relay Completion</h3>
-<p>Full simulated relay: model receives relay output, emits a
-<code>sessions_send</code> call to deliver the message. Tests end-to-end
-comprehension of the relay protocol.</p>
+<h3 id="model-relay-validation">Model Relay Validation</h3>
+<p><code>antenna test</code> and the model options on
+<code>antenna test-suite</code> exercise the current write-and-exec relay
+contract. Test behavior can evolve between releases, so use the CLI's
+own <code>--help</code> output as the command authority.</p>
 <h3 id="multi-model-comparison">Multi-Model Comparison</h3>
-<pre class="bash"><code>antenna test-suite --models &quot;openai/gpt-5.4,anthropic/claude-sonnet-4,google/gemini-2.5-flash&quot;</code></pre>
+<pre class="bash"><code>antenna test-suite --models "openai/gpt-5.4-nano,anthropic/claude-sonnet-4-5,google/gemini-2.5-pro"</code></pre>
 <p>Side-by-side results with per-test pass/fail, scores, timing, and a
 recommendation. Structured JSON and Markdown reports included.</p>
 <blockquote>
@@ -1021,7 +999,7 @@ sandbox silently clamps visibility, blocking cross-agent delivery</td>
 <tr class="even">
 <td><code>exec denied: allowlist miss</code></td>
 <td>Shell metacharacters in relay command</td>
-<td>Ensure you're on v1.2+ with the current
+<td>Ensure you're on v1.5.2 with the current
 <code>agent/AGENTS.md</code>. Relay scripts use simple exec calls to avoid allowlist rejections.</td>
 </tr>
 <tr class="odd">
@@ -1066,8 +1044,8 @@ resend through a proper Antenna client.</td>
 <tr class="odd">
 <td>Relay rejected: message too old</td>
 <td>Message timestamp is outside the freshness window (replay guard)</td>
-<td>Check clock skew on both hosts and resend. Captured old relays
-can’t be replayed, by design.</td>
+<td>Check clock skew on both hosts and resend. Envelopes outside the
+configured freshness window are rejected.</td>
 </tr>
 <tr class="even">
 <td>Setup wipes my custom <code>tools.exec</code> on the Antenna agent</td>
@@ -1120,9 +1098,10 @@ logs record metadata only (direction, peer, session, status, char count)
 preview is included for debugging. The messages themselves live in the
 target sessions, subject to your normal OpenClaw session management.</p>
 <p><strong>Q: What happens if a peer is offline?</strong> The send fails
-immediately with a clear error. Offline queue/store-and-forward is on
-the roadmap but not yet implemented. In the meantime, inbox mode on the
-receiving side can hold messages until someone approves them.</p>
+immediately with a clear error. Antenna v1.5.2 has no remote retry or
+store-and-forward queue. Inbox mode is a receiver-side approval queue
+for messages that have already reached the host; it does not make an
+offline endpoint reachable.</p>
 <p><strong>Q: Can I use a local/self-hosted model for the
 relay?</strong> Yes. Point <code>relay_agent_model</code> at any model
 your OpenClaw gateway can reach - including local Ollama models. Run
@@ -1131,7 +1110,8 @@ protocol correctly before going live.</p>
 <p><strong>Q: How do I update Antenna?</strong></p>
 <pre class="bash"><code>clawhub update antenna</code></pre>
 <p>Or pull directly from GitHub if you installed via git clone. Check the <a
-href="CHANGELOG.md">CHANGELOG</a> for what's new.</p>
+href="https://github.com/cshirley001/openclaw-skill-antenna/blob/main/CHANGELOG.md">CHANGELOG</a>
+for what's new.</p>
 <p><strong>Q: Is there a message size limit?</strong> Default is 10,000
 characters, configurable via <code>max_message_length</code> in
 <code>antenna-config.json</code>. Messages over the limit are rejected
@@ -1145,43 +1125,22 @@ everyday shorthand. <code>antenna send</code> supports additional
 options like <code>--stdin</code>, <code>--dry-run</code>, and
 structured flags. They use the same underlying send script.</p>
 <hr />
-<h2 id="whats-next-the-lobster-roadmap">What's Next - The Lobster
-Roadmap</h2>
-<p>Antenna v1.2.20 is the current tagged release. An ongoing hardening
-sweep is already merged on <code>main</code> (envelope / freshness /
-bootstrap / setup / email-sender / concurrency fixes) and will roll into
-the next tagged release. Here's what's on the horizon:</p>
+<h2 id="current-product-boundary">Current Product Boundary</h2>
+<p>Antenna v1.5.2 is the supported public release. It provides direct,
+session-addressed messaging between paired hosts, plus encrypted
+bootstrap exchange. The following capabilities are <strong>not</strong>
+part of the current release and have no published delivery schedule:</p>
 <ul>
-<li><strong>📡 Clusters &amp; Broadcasts</strong> - Named groups of
-peers; send one message to many hosts. Announce a security patch to your
-whole lab cluster in one command. Broadcast a best practice to every
-peer on your reef.</li>
-<li><strong>🦞🆘 Helping Claw</strong> - Community help requests
-broadcast to willing peers. Ask the reef a question; peers with
-<code>helping_claw</code> enabled answer; everyone else politely
-bounces. StackOverflow meets ham radio. The more lobsters on the reef,
-the smarter the whole ecosystem gets.</li>
-<li><strong>🛡️ Malicious Content Scanner</strong> - AI-powered inbound
-scanning before delivery. Important as the reef grows beyond trusted
-peers.</li>
-<li><strong>🔒 End-to-End Encryption</strong> - Message-level payload
-encryption via <code>age</code>. Even past all the other layers, the
-payload stays sealed.</li>
-<li><strong>📨 Delivery Receipts</strong> - Know when your message was
-actually relayed, not just accepted by the webhook. Negative acks on
-failure too.</li>
-<li><strong>📎 File Transfer</strong> - Small files over Antenna -
-configs, scripts, patches, research data. Not for shipping actual
-lobsters.</li>
-<li><strong>📴 Store-and-Forward</strong> - Offline queue with automatic
-retry. Send a message to a sleeping laptop; it arrives when the lid
-opens.</li>
-<li><strong>🧵 Message Threading</strong> - In-reply-to headers and
-conversation continuity across hosts. Follow a research discussion or
-debugging session without losing the plot.</li>
-<li><strong>🪸 ClawReef</strong> - <strong>Live now</strong> at <a
-href="https://clawreef.io">clawreef.io</a>. See below.</li>
+<li>Registry-driven group messaging, broadcasts, and Helping Claw
+automation</li>
+<li>Message-level end-to-end payload encryption</li>
+<li>Delivery receipts, automatic retry, and store-and-forward</li>
+<li>File transfer and message threading</li>
 </ul>
+<p>ClawReef itself is live at <a
+href="https://clawreef.io">clawreef.io</a> as a directory and
+coordination control plane. Registry groups and signed manifests exist,
+but Antenna v1.5.2 does not consume them for delivery.</p>
 <hr />
 <h2 id="clawreef-the-reef-directory">ClawReef - The Reef Directory</h2>
 <p><strong><a href="https://clawreef.io">clawreef.io</a></strong> is the
@@ -1202,17 +1161,20 @@ default session key.</li>
 invite, you both complete the connection locally using
 <code>antenna pair</code>. ClawReef introduces you; Antenna handles the
 trust.</li>
-<li><strong>Groups</strong> - named clusters for shared interests. Group creation is live; broadcast messaging is planned.</li>
+<li><strong>Groups</strong> - create and join Registry groups and expose
+signed membership manifests. This is coordination infrastructure, not a
+working Antenna group transport.</li>
 </ul>
-<h3 id="what-clawreef-doesnt-do">What ClawReef Doesn't Do</h3>
+<h3 id="clawreef-boundaries-and-custody">ClawReef Boundaries &amp; Credential Custody</h3>
 <ul>
-<li><strong>Webhook-style credentials</strong> - When you pair with the
-reef, ClawReef stores your hooks token and identity secret so it can
-deliver invites and verify your identity. This is standard
-webhook-provider behavior. ClawReef never stores messages, private
-age keys, or message content.</li>
-<li><strong>No message routing</strong> - messages travel directly
-between hosts over Antenna, not through ClawReef.</li>
+<li><strong>Credential custody</strong> - When you pair with the reef,
+ClawReef stores your hooks token and identity secret so it can deliver
+invites and verify your identity. It does not store your private
+<code>age</code> key.</li>
+<li><strong>Ordinary unicast stays direct</strong> - messages between
+paired hosts travel directly over Antenna, not through ClawReef.
+ClawReef does receive and handle traffic addressed to ClawReef itself,
+including invites and related notifications.</li>
 <li><strong>No trust decisions</strong> - ClawReef is a matchmaker, not
 a trust authority. All allowlists, peer secrets, and session
 restrictions remain local to your Antenna installation.</li>
@@ -1243,8 +1205,9 @@ deliver invites to you)</li>
 <p><strong>Use case:</strong> You're new to the community. You register
 your host, browse the reef directory, and send an invite to a peer
 running an interesting project. ClawReef delivers your invite via
-Antenna. They accept, you both run <code>antenna pair</code>, and five
-minutes later your agents are talking. No email thread, no manual token
+Antenna. They accept, you both run <code>antenna pair</code>, and their
+agents can begin talking after the local trust exchange is complete. No
+email thread, no manual token
 exchange, no "what's your endpoint again?"</p>
 </blockquote>
 <hr />
@@ -1267,7 +1230,7 @@ exchange, no "what's your endpoint again?"</p>
 │   ├── antenna-peers.sh             # Peer listing
 │   ├── antenna-doctor.sh            # Diagnostic health check
 │   ├── antenna-model-test.sh        # Single-model smoke test
-│   └── antenna-test-suite.sh        # Three-tier test framework
+│   └── antenna-test-suite.sh        # Relay validation framework
 ├── references/
 │   ├── USER-GUIDE.md                # This document
 │   ├── ANTENNA-RELAY-FSD.md         # Relay protocol specification
