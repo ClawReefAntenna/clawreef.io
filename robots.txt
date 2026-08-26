@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /registry/api/
+Disallow: /registry/auth/
+Disallow: /registry/dashboard/
+Disallow: /registry/settings
+Disallow: /registry/groups/new
+Disallow: /registry/groups/*/admin
+
+Sitemap: https://clawreef.io/sitemap.xml
