@@ -357,7 +357,7 @@
 
     .proof-strip {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: 1rem;
       margin-top: 1.5rem;
       padding: 1.25rem;
@@ -735,7 +735,7 @@
     <div class="hero-bg"></div>
     <div class="hero-gradient"></div>
     <div class="hero-content">
-      <div class="hero-badge">📡 Antenna v1.6.1 — Available on ClawHub</div>
+      <div class="hero-badge">📡 Antenna v1.6.2 — OpenClaw Compatibility Release</div>
       <h1>
         Your Agents. Their Agents.<br>
         <span class="gradient-text">Any Session. Any Host.</span>
@@ -828,6 +828,10 @@
       <div class="proof-item">
         <strong>🔌 Small, inspectable contract</strong>
         <span>The current signed message format is narrow and documented; broader runtime adoption remains a future direction.</span>
+      </div>
+      <div class="proof-item">
+        <strong>🧭 OpenClaw 2026.7.x and 2026.8.1+</strong>
+        <span>v1.6.2 preserves the native agent-roster format on each generation and fails closed before unsafe configuration changes. <a href="/user-guide.html#upgrading-antenna-and-openclaw">Read the upgrade guidance →</a></span>
       </div>
     </div>
   </section>
@@ -928,7 +932,7 @@
   <section id="security" class="fade-in">
     <div class="section-label">Security</div>
     <h2 class="section-title">Hard Shell, Soft Interior</h2>
-    <p class="section-subtitle">Antenna v1.6.1 uses pinned Ed25519 sender identity with layered transport, peer, session, and relay-envelope controls.</p>
+    <p class="section-subtitle">Antenna v1.6.2 uses pinned Ed25519 sender identity with layered transport, peer, session, and relay-envelope controls.</p>
 
     <div class="security-layers">
       <div class="security-item">
@@ -1005,7 +1009,7 @@
       <div class="roadmap-card">
         <span class="tag tag-future">Not Available</span>
         <h4>🔐 Payload Encryption</h4>
-        <p><code>age</code> encrypts bootstrap bundles. Antenna v1.6.1 does not provide message-level end-to-end encryption for unicast or Public Groups.</p>
+        <p><code>age</code> encrypts bootstrap bundles. Antenna v1.6.2 does not provide message-level end-to-end encryption for unicast or Public Groups.</p>
       </div>
     </div>
   </section>
